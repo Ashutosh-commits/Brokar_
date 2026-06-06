@@ -1,0 +1,33 @@
+# ─── BROkar .dockerignore ─────────────────────────────────────────────────────
+# Prevents local artefacts from being sent to the Docker daemon.
+# Without this, `node_modules` alone can be 500 MB+ of build context.
+
+# Dependencies (reinstalled inside the image)
+node_modules
+server/node_modules
+scraper/.venv
+.venv
+
+# Build outputs (rebuilt inside the image)
+build
+server/dist
+
+# Version control
+.git
+.gitignore
+
+# Local env files (never goes inside an image — injected at runtime)
+.env
+.env.local
+server/.env
+scraper/.env
+
+# Logs and OS noise
+*.log
+.DS_Store
+Thumbs.db
+
+# Dev tooling (not needed at runtime)
+.github
+e2e
+*.md

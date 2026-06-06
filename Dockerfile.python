@@ -1,0 +1,28 @@
+# ─── Python ML Service — Property Price Prediction ───────────────────────────
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for scientific Python
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps first (layer caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the prediction model
+COPY property_prediction_model.py .
+
+# Model files are stored in a Docker volume at /app/models
+# On first boot, train if no models exist
+RUN mkdir -p /app/models
+
+# Entrypoint: train models if not already trained, then start the API
+COPY docker-entrypoint.sh .
+RUN chmod +x docker-entrypoint.sh
+
+EXPOSE 8000
+
+CMD ["./docker-entrypoint.sh"]

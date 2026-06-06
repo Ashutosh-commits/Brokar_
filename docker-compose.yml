@@ -1,0 +1,137 @@
+# ─── BROkar Docker Compose ────────────────────────────────────────────────────
+# Usage:
+#   docker compose up -d            # start all services
+#   docker compose up -d postgres   # start only the database
+#
+# Required .env variables (copy .env.example → .env and fill in):
+#   DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET, REFRESH_SECRET,
+#   GROQ_API_KEY, SCRAPER_API_KEY
+
+services:
+
+  # ─── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: brokar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: brokar1
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d brokar1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── Redis (password-protected) ──────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: brokar-redis
+    restart: unless-stopped
+    # Pass password via CLI arg so it's not visible in `docker inspect` env
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ─── Express / Node.js API ───────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: brokar-api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@postgres:5432/brokar1
+      # Redis URL includes password: redis://:password@host:port
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      ML_SERVICE_URL: http://ml-service:8000
+      SCRAPER_SERVICE_URL: http://scraper:8001
+      JWT_SECRET: ${JWT_SECRET}
+      REFRESH_SECRET: ${REFRESH_SECRET}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      SCRAPER_API_KEY: ${SCRAPER_API_KEY}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─── Python ML Service ───────────────────────────────────────────────────────
+  ml-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: brokar-ml
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ml_models:/app/models
+    environment:
+      PORT: 8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s   # model training on first boot takes 2-3 min
+
+  # ─── Python Scraper Service ──────────────────────────────────────────────────
+  scraper:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: brokar-scraper
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      SCRAPER_API_KEY: ${SCRAPER_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # ─── Frontend (nginx) ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+      args:
+        # Baked into the JS bundle at build time — must be publicly reachable
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}
+    container_name: brokar-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  ml_models:

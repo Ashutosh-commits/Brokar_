@@ -1,0 +1,39 @@
+# ─── BROkar Express / Node.js API ─────────────────────────────────────────────
+# Stage 1: build TypeScript → JavaScript
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install ALL deps (including devDeps needed to compile TS)
+COPY server/package*.json ./
+# Use npm install (not npm ci) — no lock file committed yet.
+# Once you commit package-lock.json, switch this back to: npm ci
+RUN npm install
+
+COPY server/ ./
+RUN npm run build
+
+# ─── Stage 2: lean production image ──────────────────────────────────────────
+FROM node:20-alpine AS production
+
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+# Production deps only
+COPY server/package*.json ./
+RUN npm install --omit=dev
+
+# Compiled JS
+COPY --from=builder /app/dist ./dist
+
+# Prisma schema + client (both required at runtime)
+COPY server/prisma ./prisma
+RUN npx prisma generate
+
+EXPOSE 3001
+
+# ⚠️  Uses `prisma db push` (schema-first, no migration files).
+# --accept-data-loss is intentionally REMOVED — if a schema change would
+# drop data, the container will refuse to start so you can investigate first.
+CMD ["sh", "-c", "npx prisma db push && node dist/index.js"]

@@ -1,0 +1,166 @@
+# ─── BROkar CI Pipeline ───────────────────────────────────────────────────────
+# Runs on every push / PR to main or develop:
+#   1. Type-check + build the React frontend
+#   2. Type-check + build the Express backend
+#   3. Spin up Postgres + Redis → run Prisma migrations → start API → E2E tests
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ─── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend — type-check + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          # No lock file yet → skip cache; add `cache: npm` once package-lock.json is committed
+          
+      - name: Install dependencies
+        run: npm install        # ← npm ci requires package-lock.json; use npm install until lock file is committed
+
+      - name: Type-check
+        run: npx tsc --noEmit  # uses root tsconfig.json → checks src/
+
+      - name: Build
+        env:
+          VITE_API_URL: http://localhost:3001/api
+        run: npm run build
+
+      - name: Upload build artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: build/
+          retention-days: 1
+
+  # ─── Backend ─────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend — type-check + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm install        # ← same: npm ci once server/package-lock.json is committed
+
+      - name: Type-check
+        working-directory: server
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: server
+        run: npm run build
+
+  # ─── E2E tests ───────────────────────────────────────────────────────────────
+  e2e:
+    name: E2E tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: brokar_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install root deps
+        run: npm install
+
+      - name: Install server deps
+        working-directory: server
+        run: npm install
+
+      - name: Install test tools
+        run: npm install -g serve wait-on
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: build/
+
+      - name: Build backend
+        working-directory: server
+        run: npm run build
+
+      - name: Run database migrations
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://postgres:ci_password@localhost:5433/brokar_test
+        run: npx prisma db push
+
+      - name: Start API server (background)
+        working-directory: server
+        env:
+          DATABASE_URL: postgresql://postgres:ci_password@localhost:5433/brokar_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci_jwt_secret_32_chars_not_prod
+          REFRESH_SECRET: ci_refresh_secret_32_chars_not_prod
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PORT: 3001
+          NODE_ENV: test
+        run: node dist/index.js &
+
+      - name: Wait for API to be ready
+        run: wait-on http://localhost:3001/api/health --timeout 20000
+
+      - name: Serve frontend (background)
+        run: serve build -p 3000 &
+
+      - name: Wait for frontend to be ready
+        run: wait-on http://localhost:3000 --timeout 10000
+
+      - name: Run Playwright tests
+        run: node e2e/playwright-test.js
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7

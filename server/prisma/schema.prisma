@@ -1,0 +1,181 @@
+// Run: npx prisma db push   (apply schema changes)
+// Run: npx prisma studio    (view data in browser)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String?  @unique
+  passwordHash String
+  name         String
+  avatar       String?
+  phone        String?
+  city         String?
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  favorites    Favorite[]
+  sessions     Session[]
+  chatMessages ChatMessage[]
+  settings     UserSettings?
+  resetToken   PasswordResetToken?
+  viewed       ViewedProperty[]
+  inquiries    Inquiry[]
+
+  @@map("users")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// ─── Sessions ────────────────────────────────────────────────────────────────
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── Properties ──────────────────────────────────────────────────────────────
+
+model Property {
+  id               String   @id @default(cuid())
+  title            String
+  description      String
+  city             String
+  location         String
+  propertyType     String
+  bhkType          String
+  bedrooms         Int
+  bathrooms        Int
+  sqft             Int
+  yearBuilt        Int
+  currentPrice     BigInt
+  appreciationRate Float
+  imageUrl         String
+  images           String[]
+  isActive         Boolean  @default(true)
+
+  // ── Scraper fields ────────────────────────────────────────────────────────
+  sourceUrl        String?  // original listing URL — used by "View Details" button
+  source           String?  // "99acres" | "magicbricks" | "manual"
+  scrapedAt        DateTime?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  favorites Favorite[]
+  viewed ViewedProperty[]
+  inquiries Inquiry[]
+
+  @@index([city, propertyType, currentPrice])
+  @@index([source])
+  @@unique([sourceUrl])   // DB-level guard: scraper dedup relies on this
+  @@map("properties")
+}
+
+// ─── Favorites ───────────────────────────────────────────────────────────────
+
+model Favorite {
+  userId     String
+  propertyId String
+  savedAt    DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, propertyId])
+  @@map("favorites")
+}
+
+// ─── Chat history ─────────────────────────────────────────────────────────────
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("chat_messages")
+}
+
+// ─── User Settings ────────────────────────────────────────────────────────────
+
+model UserSettings {
+  userId             String  @id
+  emailNotifications Boolean @default(true)
+  priceAlerts        Boolean @default(true)
+  weeklyDigest       Boolean @default(false)
+  newsletterOptIn    Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// ─── Password Reset Tokens ────────────────────────────────────────────────────
+
+model PasswordResetToken {
+  userId    String   @id
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+// ─── Viewed Properties ───────────────────────────────────────────────────────
+
+model ViewedProperty {
+  id        String   @id @default(cuid())
+  userId    String
+  propertyId String
+  viewedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, viewedAt])
+  @@map("viewed_properties")
+}
+
+// ─── Inquiries ──────────────────────────────────────────────────────────────
+
+model Inquiry {
+  id        String   @id @default(cuid())
+  userId    String
+  propertyId String
+  message   String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("inquiries")
+}
