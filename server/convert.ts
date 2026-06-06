@@ -34,7 +34,7 @@ export const convertedProperties: Property[] = ${JSON.stringify(formatted, null,
 
 // write to file
 fs.writeFileSync(
-  path.join(__dirname, "../src/data/convertedProperties.ts"),
+  path.join(__dirname, "../frontend/src/data/convertedProperties.ts"),
   output
 );
 

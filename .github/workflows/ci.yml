@@ -26,12 +26,15 @@ jobs:
           # No lock file yet → skip cache; add `cache: npm` once package-lock.json is committed
           
       - name: Install dependencies
+        working-directory: frontend
         run: npm install        # ← npm ci requires package-lock.json; use npm install until lock file is committed
 
       - name: Type-check
-        run: npx tsc --noEmit  # uses root tsconfig.json → checks src/
+        working-directory: frontend
+        run: npx tsc --noEmit
 
       - name: Build
+        working-directory: frontend
         env:
           VITE_API_URL: http://localhost:3001/api
         run: npm run build
@@ -40,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: build/
+          path: frontend/build/
           retention-days: 1
 
   # ─── Backend ─────────────────────────────────────────────────────────────────
@@ -107,6 +110,10 @@ jobs:
       - name: Install root deps
         run: npm install
 
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm install
+
       - name: Install server deps
         working-directory: server
         run: npm install
@@ -121,7 +128,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
-          path: build/
+          path: frontend/build/
 
       - name: Build backend
         working-directory: server
@@ -149,7 +156,7 @@ jobs:
         run: wait-on http://localhost:3001/api/health --timeout 20000
 
       - name: Serve frontend (background)
-        run: serve build -p 3000 &
+        run: serve frontend/build -p 3000 &
 
       - name: Wait for frontend to be ready
         run: wait-on http://localhost:3000 --timeout 10000

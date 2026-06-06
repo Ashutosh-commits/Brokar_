@@ -1,11 +1,12 @@
 # ─── Dependencies ─────────────────────────────────────────────────────────────
 node_modules/
+frontend/node_modules/
 server/node_modules/
 .venv/
 scraper/.venv/
 
 # ─── Build outputs ────────────────────────────────────────────────────────────
-build/
+frontend/build/
 server/dist/
 *.pyc
 __pycache__/

@@ -91,7 +91,7 @@ CLIENT_URL         = https://YOUR-APP.vercel.app   ← fill in after Step 4
    - **Framework preset**: Vite
    - **Build command**: `npm run build`
    - **Output directory**: `build`
-   - **Root directory**: `.` (leave as-is)
+   - **Root directory**: `frontend`
 4. Add this **Environment variable**:
    ```
    VITE_API_URL = https://brokar-api.up.railway.app/api
@@ -103,13 +103,13 @@ CLIENT_URL         = https://YOUR-APP.vercel.app   ← fill in after Step 4
 
 ## Step 5 — Deploy the ML service on Railway (optional)
 
-The ML service (`property_prediction_model.py`) handles price predictions.
+The ML service (`ml/property_prediction_model.py`) handles price predictions.
 You can deploy it alongside the API:
 
 1. In Railway → **New Service** → **GitHub repo** → same `brokar` repo
 2. Set **Root directory** to `.` (project root)
-3. **Build command**: `pip install -r requirements.txt`
-4. **Start command**: `python property_prediction_model.py serve`
+3. **Build command**: `pip install -r ml/requirements.txt`
+4. **Start command**: `python ml/property_prediction_model.py serve`
 5. Add `PORT=8000` as an environment variable.
 6. Copy the service URL (e.g. `https://brokar-ml.up.railway.app`)
 7. In the API service, add: `ML_SERVICE_URL=https://brokar-ml.up.railway.app`

@@ -4,12 +4,13 @@
 
 # Dependencies (reinstalled inside the image)
 node_modules
+frontend/node_modules
 server/node_modules
 scraper/.venv
 .venv
 
 # Build outputs (rebuilt inside the image)
-build
+frontend/build
 server/dist
 
 # Version control

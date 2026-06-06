@@ -5,14 +5,11 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
-# Use npm install (not npm ci) — no lock file committed yet.
-# Once you commit package-lock.json, switch this back to: npm ci
 RUN npm install
 
 COPY . .
 
 # VITE_API_URL is baked into the JS bundle at build time.
-# Pass the real URL via --build-arg when running docker build or in compose.
 ARG VITE_API_URL=http://localhost:3001/api
 ENV VITE_API_URL=$VITE_API_URL
 

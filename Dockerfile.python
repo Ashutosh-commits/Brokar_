@@ -9,15 +9,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (layer caching)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY ml/requirements.txt ml/
+RUN pip install --no-cache-dir -r ml/requirements.txt
 
 # Copy the prediction model
-COPY property_prediction_model.py .
+COPY ml/property_prediction_model.py ml/
 
-# Model files are stored in a Docker volume at /app/models
+# Model files are stored in a Docker volume at /app/ml/models
 # On first boot, train if no models exist
-RUN mkdir -p /app/models
+RUN mkdir -p /app/ml/models
 
 # Entrypoint: train models if not already trained, then start the API
 COPY docker-entrypoint.sh .

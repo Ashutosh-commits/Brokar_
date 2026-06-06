@@ -87,7 +87,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ml_models:/app/models
+      - ml_models:/app/ml/models
     environment:
       PORT: 8000
     healthcheck:
@@ -118,8 +118,8 @@ services:
   # ─── Frontend (nginx) ────────────────────────────────────────────────────────
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.nginx
+      context: ./frontend
+      dockerfile: Dockerfile
       args:
         # Baked into the JS bundle at build time — must be publicly reachable
         VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}

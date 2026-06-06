@@ -2,7 +2,9 @@
 # ─── Entrypoint for ML service ────────────────────────────────────────────────
 # Trains models on first boot if they don't exist, then starts FastAPI.
 
-MODEL_FILE="/app/models/xgboost_price.pkl"
+cd /app/ml || exit 1
+
+MODEL_FILE="models/xgboost_price.pkl"
 
 if [ ! -f "$MODEL_FILE" ]; then
   echo "=== First boot: training models (this takes ~2-3 minutes) ==="
