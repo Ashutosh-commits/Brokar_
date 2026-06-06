@@ -100,7 +100,7 @@ export default function App() {
 
     try {
       const { data } = await api.get("/properties", {
-        params: { page: 1, limit: 2000, sort: "price-asc" },
+        params: { page: 1, limit: 8000, sort: "price-asc" },
       });
 
       if (cancelPropertiesFetch.current) return;
