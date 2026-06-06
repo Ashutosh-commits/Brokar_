@@ -95,7 +95,7 @@ export async function refreshTokens(refreshToken: string) {
   }
 
   // Rotate: delete old session and issue new pair
-  await prisma.session.delete({ where: { tokenHash } });
+  await prisma.session.deleteMany({ where: { tokenHash } });
   return issueTokens(payload.sub, payload.role);
 }
 
