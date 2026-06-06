@@ -16,6 +16,9 @@ import { errorHandler } from "./src/middleware/errorHandler";
 
 const prisma = new PrismaClient();
 const app = express();
+
+app.set("trust proxy", 1);
+
 const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = [
