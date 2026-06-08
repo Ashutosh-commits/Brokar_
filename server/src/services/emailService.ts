@@ -3,7 +3,7 @@
  *
  * Priority order:
  *   1. Gmail via Nodemailer  — set GMAIL_USER + GMAIL_APP_PASSWORD
- *   2. Resend                — set RESEND_API_KEY (requires verified domain for other recipients)
+ *   2. Resend                — set RESEND_API_KEY (requires verified domain for non-own-email recipients)
  *   3. Console fallback      — dev mode, no config needed
  *
  * Getting a Gmail App Password (takes 2 minutes):
@@ -20,11 +20,16 @@ import { Resend } from "resend";
 function getGmailTransport() {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return null;
   return nodemailer.createTransport({
-    service: "gmail",
+    host:   "smtp.gmail.com",
+    port:   465,
+    secure: true,             // SSL — more reliable than STARTTLS on cloud hosts
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD,
     },
+    connectionTimeout: 30_000,
+    greetingTimeout:   30_000,
+    socketTimeout:     30_000,
   });
 }
 
@@ -46,7 +51,7 @@ export async function sendPasswordResetEmail(
   const html    = passwordResetHtml(name, resetUrl);
   const text    = passwordResetText(name, resetUrl);
 
-  // ── 1. Gmail (recommended — no domain needed) ────────────────────────────
+  // ── 1. Gmail (port 465 SSL) ──────────────────────────────────────────────
   const gmail = getGmailTransport();
   if (gmail) {
     const from = `BROkar <${process.env.GMAIL_USER}>`;
@@ -153,6 +158,8 @@ function passwordResetHtml(name: string, resetUrl: string): string {
 </body>
 </html>`;
 }
+
+// ─── Plain-text fallback ──────────────────────────────────────────────────────
 
 function passwordResetText(name: string, resetUrl: string): string {
   const firstName = name.split(" ")[0] || "there";
