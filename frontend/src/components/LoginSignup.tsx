@@ -347,7 +347,7 @@ export function LoginSignup({ onLogin, onBack }: LoginSignupProps) {
                   <Input
                     id="name"
                     type="text"
-                    placeholder="Aanchal Singh"
+                    placeholder="Username"
                     value={name}
                     onChange={(e) => { setName(e.target.value); clear(); }}
                     className="pl-10"
@@ -365,7 +365,7 @@ export function LoginSignup({ onLogin, onBack }: LoginSignupProps) {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="Email Address"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); clear(); }}
                   className="pl-10"
