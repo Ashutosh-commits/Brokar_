@@ -131,15 +131,6 @@ router.post("/forgot-password", authLimiter, async (req: Request, res: Response)
     const clientUrl  = (process.env.CLIENT_URL || "http://localhost:5173").split(",")[0].trim();
     const resetUrl   = `${clientUrl}?reset_token=${resetToken}&email=${encodeURIComponent(email)}`;
 
-    // Send the email (falls back to console.log if RESEND_API_KEY is not set)
-    try {
-      await sendPasswordResetEmail(email, user.name, resetUrl);
-    } catch (emailErr: any) {
-      console.error("[auth] Failed to send reset email:", emailErr.message);
-      res.status(500).json({ error: emailErr.message || "Failed to send reset email. Please try again." });
-      return;
-    }
-
     res.json({
       ...okResponse,
       // Only expose the raw URL in development so devs can test without email
@@ -150,7 +141,7 @@ router.post("/forgot-password", authLimiter, async (req: Request, res: Response)
     sendPasswordResetEmail(email, user.name, resetUrl).catch((emailErr: any) => {
       console.error("[auth] Background email send failed:", emailErr.message);
     });
-    
+
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
