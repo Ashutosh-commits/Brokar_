@@ -145,6 +145,12 @@ router.post("/forgot-password", authLimiter, async (req: Request, res: Response)
       // Only expose the raw URL in development so devs can test without email
       devResetUrl: process.env.NODE_ENV === "development" ? resetUrl : undefined,
     });
+
+    // Send email in the background — failure is logged, not shown to user
+    sendPasswordResetEmail(email, user.name, resetUrl).catch((emailErr: any) => {
+      console.error("[auth] Background email send failed:", emailErr.message);
+    });
+    
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
