@@ -16,12 +16,17 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   username     String?  @unique
-  passwordHash String
+  passwordHash String?  // nullable — Google OAuth users have no password
   name         String
   avatar       String?
   phone        String?
   city         String?
   role         Role     @default(USER)
+
+  // ── OAuth ────────────────────────────────────────────────────────────────
+  provider     String   @default("email")  // "email" | "google"
+  googleId     String?  @unique            // Google sub claim
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -148,15 +153,16 @@ model PasswordResetToken {
 
   @@map("password_reset_tokens")
 }
+
 // ─── Viewed Properties ───────────────────────────────────────────────────────
 
 model ViewedProperty {
-  id        String   @id @default(cuid())
-  userId    String
+  id         String   @id @default(cuid())
+  userId     String
   propertyId String
-  viewedAt  DateTime @default(now())
+  viewedAt   DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([userId, viewedAt])
@@ -166,14 +172,14 @@ model ViewedProperty {
 // ─── Inquiries ──────────────────────────────────────────────────────────────
 
 model Inquiry {
-  id        String   @id @default(cuid())
-  userId    String
+  id         String   @id @default(cuid())
+  userId     String
   propertyId String
-  message   String
-  status    String   @default("open")
-  createdAt DateTime @default(now())
+  message    String
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])

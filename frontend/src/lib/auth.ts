@@ -24,8 +24,8 @@ export interface UserSettings {
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
 const KEYS = {
-  USER: "brokar_user",
-  ACCESS_TOKEN: "accessToken",
+  USER:          "brokar_user",
+  ACCESS_TOKEN:  "accessToken",
   REFRESH_TOKEN: "refreshToken",
 };
 
@@ -116,30 +116,27 @@ export async function authFetch(path: string, options: RequestInit = {}): Promis
 async function parseJsonOrText(response: Response): Promise<any> {
   const text = await response.text();
   if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { error: text };
-  }
+  try { return JSON.parse(text); }
+  catch { return { error: text }; }
 }
 
 export async function register(name: string, email: string, password: string): Promise<User> {
   try {
-    const res = await fetch(`${apiUrl()}/auth/register`, {
-      method: "POST",
+    const res  = await fetch(`${apiUrl()}/auth/register`, {
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
-      signal: AbortSignal.timeout(5000),
+      body:    JSON.stringify({ name, email, password }),
+      signal:  AbortSignal.timeout(5000),
     });
     const data = await parseJsonOrText(res);
     if (res.ok && data) {
       saveTokens(data.accessToken, data.refreshToken);
       const user: User = {
-        id: data.user.id,
-        name: data.user.name,
+        id:       data.user.id,
+        name:     data.user.name,
         username: data.user.username,
-        email: data.user.email,
-        avatar: data.user.avatar || makeAvatar(email),
+        email:    data.user.email,
+        avatar:   data.user.avatar || makeAvatar(email),
         joinDate: makeJoinDate(),
         provider: "email",
       };
@@ -161,24 +158,24 @@ export async function register(name: string, email: string, password: string): P
 
 export async function login(email: string, password: string): Promise<User> {
   try {
-    const res = await fetch(`${apiUrl()}/auth/login`, {
-      method: "POST",
+    const res  = await fetch(`${apiUrl()}/auth/login`, {
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-      signal: AbortSignal.timeout(5000),
+      body:    JSON.stringify({ email, password }),
+      signal:  AbortSignal.timeout(5000),
     });
     const data = await parseJsonOrText(res);
     if (res.ok && data) {
       saveTokens(data.accessToken, data.refreshToken);
       const prev = loadUser();
       const user: User = {
-        id: data.user.id,
-        name: data.user.name,
+        id:       data.user.id,
+        name:     data.user.name,
         username: data.user.username,
-        email: data.user.email,
-        avatar: data.user.avatar || prev?.avatar || makeAvatar(email),
-        phone: prev?.phone,
-        city: prev?.city,
+        email:    data.user.email,
+        avatar:   data.user.avatar || prev?.avatar || makeAvatar(email),
+        phone:    prev?.phone,
+        city:     prev?.city,
         joinDate: prev?.joinDate || makeJoinDate(),
         provider: "email",
       };
@@ -195,11 +192,11 @@ export async function login(email: string, password: string): Promise<User> {
 // ─── Forgot Password ──────────────────────────────────────────────────────────
 
 export async function forgotPassword(email: string): Promise<{ message: string; devResetUrl?: string }> {
-  const res = await fetch(`${apiUrl()}/auth/forgot-password`, {
-    method: "POST",
+  const res  = await fetch(`${apiUrl()}/auth/forgot-password`, {
+    method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-    signal: AbortSignal.timeout(8000),
+    body:    JSON.stringify({ email }),
+    signal:  AbortSignal.timeout(8000),
   });
   const data = await parseJsonOrText(res);
   if (!res.ok) throw new Error(data?.error || data?.message || "Failed to send reset email");
@@ -209,56 +206,109 @@ export async function forgotPassword(email: string): Promise<{ message: string; 
 // ─── Reset Password ───────────────────────────────────────────────────────────
 
 export async function resetPassword(token: string, email: string, newPassword: string): Promise<void> {
-  const res = await fetch(`${apiUrl()}/auth/reset-password`, {
-    method: "POST",
+  const res  = await fetch(`${apiUrl()}/auth/reset-password`, {
+    method:  "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, email, newPassword }),
-    signal: AbortSignal.timeout(8000),
+    body:    JSON.stringify({ token, email, newPassword }),
+    signal:  AbortSignal.timeout(8000),
   });
   const data = await parseJsonOrText(res);
   if (!res.ok) throw new Error(data?.error || data?.message || "Failed to reset password");
 }
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────
+// Flow:
+//   1. Load Google Identity Services script dynamically
+//   2. Show One Tap prompt (or render a hidden button as fallback)
+//   3. On credential received, POST to /api/auth/google for server-side verification
+//   4. Server returns BROkar JWT tokens — store and resolve with a User object
 
 export function loginWithGoogle(): Promise<User> {
   return new Promise((resolve, reject) => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) { reject(new Error("GOOGLE_NOT_CONFIGURED")); return; }
+    if (!clientId) {
+      reject(new Error("GOOGLE_NOT_CONFIGURED"));
+      return;
+    }
 
+    // Load the GSI script if not already present
     const loadGSI = (): Promise<void> =>
-      new Promise((res) => {
-        if ((window as any).google?.accounts) { res(); return; }
-        const script = document.createElement("script");
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.onload = () => res();
+      new Promise((done) => {
+        if ((window as any).google?.accounts) { done(); return; }
+        const script   = document.createElement("script");
+        script.src     = "https://accounts.google.com/gsi/client";
+        script.async   = true;
+        script.onload  = () => done();
+        script.onerror = () => reject(new Error("Failed to load Google Sign-In"));
         document.head.appendChild(script);
       });
 
     loadGSI().then(() => {
       (window as any).google.accounts.id.initialize({
         client_id: clientId,
-        callback: (response: any) => {
-          if (!response.credential) { reject(new Error("Google sign-in was cancelled")); return; }
-          const parts = response.credential.split(".");
-          const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-          const user: User = { id: `google_${payload.sub}`, name: payload.name, email: payload.email, avatar: payload.picture || makeAvatar(payload.email), joinDate: makeJoinDate(), provider: "google" };
-          saveUser(user);
-          resolve(user);
+
+        // This callback fires when the user picks an account from the One Tap dialog
+        callback: async (response: { credential?: string }) => {
+          if (!response.credential) {
+            reject(new Error("Google sign-in was cancelled"));
+            return;
+          }
+
+          try {
+            // Send the raw Google ID token to the backend — never decode it client-side
+            const res = await fetch(`${apiUrl()}/auth/google`, {
+              method:  "POST",
+              headers: { "Content-Type": "application/json" },
+              body:    JSON.stringify({ credential: response.credential }),
+              signal:  AbortSignal.timeout(10_000),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+              reject(new Error(data?.error || "Google authentication failed"));
+              return;
+            }
+
+            // Backend returned proper BROkar JWT tokens — same shape as email login
+            saveTokens(data.accessToken, data.refreshToken);
+
+            const user: User = {
+              id:       data.user.id,
+              name:     data.user.name,
+              username: data.user.username,
+              email:    data.user.email,
+              avatar:   data.user.avatar || makeAvatar(data.user.email),
+              joinDate: makeJoinDate(),
+              provider: "google",
+            };
+            saveUser(user);
+            resolve(user);
+          } catch (err: any) {
+            reject(new Error(err.message || "Google authentication failed"));
+          }
         },
       });
 
+      // Show the One Tap prompt; fall back to a hidden rendered button if blocked
       (window as any).google.accounts.id.prompt((notification: any) => {
         if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
           let div = document.getElementById("__g_btn");
-          if (!div) { div = document.createElement("div"); div.id = "__g_btn"; div.style.display = "none"; document.body.appendChild(div); }
-          (window as any).google.accounts.id.renderButton(div, { theme: "outline", size: "large" });
+          if (!div) {
+            div            = document.createElement("div");
+            div.id         = "__g_btn";
+            div.style.cssText = "position:absolute;opacity:0;pointer-events:none;";
+            document.body.appendChild(div);
+          }
+          (window as any).google.accounts.id.renderButton(div, {
+            theme: "outline",
+            size:  "large",
+          });
           const btn = div.querySelector<HTMLElement>("[role=button]");
           if (btn) btn.click();
         }
       });
-    });
+    }).catch(reject);
   });
 }
 
@@ -281,7 +331,7 @@ export function loginWithMicrosoft(): Promise<User> {
         const url = popup.location.href;
         if (url.includes("access_token=")) {
           clearInterval(timer); popup.close();
-          const hash = url.split("#")[1] || "";
+          const hash   = url.split("#")[1] || "";
           const params = new URLSearchParams(hash);
           const accessToken = params.get("access_token");
           if (!accessToken) { reject(new Error("Failed to retrieve access token from Microsoft")); return; }
@@ -311,11 +361,11 @@ export async function updateProfile(updates: Partial<User>): Promise<User> {
 
   try {
     await api.patch("/users/me", {
-      name: updates.name,
-      phone: updates.phone,
-      city: updates.city,
+      name:     updates.name,
+      phone:    updates.phone,
+      city:     updates.city,
       username: updates.username,
-      avatar: updates.avatar,
+      avatar:   updates.avatar,
     });
   } catch { /* Local save still works */ }
 
