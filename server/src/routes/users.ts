@@ -57,6 +57,7 @@ router.post("/me/change-password", async (req: AuthRequest, res: Response) => {
     if (newPassword.length < 8) { res.status(400).json({ error: "New password must be at least 8 characters" }); return; }
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    if (!user.passwordHash) { res.status(400).json({ error: "This account uses Google sign-in and has no password to change" }); return; }
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!valid) { res.status(400).json({ error: "Current password is incorrect" }); return; }
     const passwordHash = await bcrypt.hash(newPassword, 12);
